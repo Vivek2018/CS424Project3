@@ -1,0 +1,73 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+library(shiny)
+
+
+ui <- dashboardPage(
+    
+    #create dashboard and elements
+    dashboardHeader(title = "CS 424 Project 2"),
+    
+    dashboardSidebar(disable = FALSE, collapsed = FALSE,
+                     #menu bar with all 3 panels and about page
+                     sidebarMenu(
+                         menuItem("Near West Side Community", tabName = "west_side", icon = NULL),
+                         menuItem("Community to Community Comparison", tabName = "community_compare", icon = NULL),
+                         menuItem("Chicago", tabName = "chicago", icon = NULL),
+                         menuItem("About Page", tabName = "about", icon = NULL)
+                     )
+    ),
+    
+    dashboardBody(
+        tabItems(
+            #west side data tab for west side only
+            tabItem(tabName="west_side",
+                fluidRow(
+                    column(2, 
+                       selectizeInput(
+                           'west_loop_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
+                       ),
+                       
+                       selectizeInput(
+                           'west_loop_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = TRUE
+                       ),
+                       
+                       selectizeInput(
+                           'west_loop_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = TRUE
+                       ),
+                       
+                       actionButton("reset_button_first_page", "Reset View")
+                           
+                   ),
+                   
+                   column(5, 
+                          leafletOutput("west_loop_map", height = 630)
+                  )
+                )
+            )
+        )
+    )
+)
+    
+    
+    
+# Define server logic required to draw a histogram
+server <- function(input, output) {
+    #First Map - West Side Loop
+    
+    observe({
+        view <- input$west_loop_view
+        west_side_data <- 
+    })
+    
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
