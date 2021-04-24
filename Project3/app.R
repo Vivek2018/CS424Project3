@@ -228,20 +228,6 @@ ui <- dashboardPage(
 server <- function(input, output) {
     
     #First Map - West Side Loop
-   
-    # output$west_loop_map <- renderLeaflet({
-    #     # createCommunityMap(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_months)@map
-    #     
-    #     # returnList <- createCommunityMap(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_months)
-    #     
-    #     # mapview(returnList[1], zcol = returnList[2])
-    #     
-    #     choice <- generateChoice(input$west_loop_view, input$west_loop_months)
-    #     dataset <- createCommunityDataset(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_months, input$west_loop_building, choice)
-    #     mapview(dataset, zcol = choice)@map
-    #     
-    # })
-    # 
     
     actionsPage1 <- reactive({list(input$reset_button_first_page, input$west_loop_view, input$west_loop_months, input$west_loop_building)})
     observeEvent(actionsPage1(), {
@@ -256,12 +242,30 @@ server <- function(input, output) {
         
     })
     
-    output$com1_map <- renderLeaflet({
-        # createCommunityMap(data, chicago_blocks, input$com1, input$com1_view, input$com1_months)
+    #Community 1 - Page 2 
+    
+    actionsCom1 <- reactive({list(input$reset_com1, input$com1, input$com1_view, input$com1_months, input$com1_building)})
+    observeEvent(actionsCom1(), {
+        
+        choice <- generateChoice(input$com1_view, input$com1_months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com1, input$com1_view, input$com1_months, input$com1_building, choice)
+        
+        output$com1_map <- renderLeaflet({
+            mapview(dataset, zcol = choice)@map
+        })
+    
     })
 
-    output$com2_map <- renderLeaflet({
-        # createCommunityMap(data, chicago_blocks, input$com2, input$com2_view, input$com2_months)
+    actionsCom2 <- reactive({list(input$reset_com2, input$com2, input$com2_view, input$com2_months, input$com2_building)})
+    observeEvent(actionsCom2(), {
+        
+        choice <- generateChoice(input$com2_view, input$com2_months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com2, input$com2_view, input$com2_months, input$com2_building, choice)
+        
+        output$com2_map <- renderLeaflet({
+            mapview(dataset, zcol = choice)@map
+        })
+        
     })
 
     output$chicago_map <- renderLeaflet({
