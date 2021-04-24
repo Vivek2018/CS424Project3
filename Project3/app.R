@@ -11,14 +11,27 @@ library(shiny)
 library(mapview)
 library(shinydashboard)
 library(leaflet)
+library(tigris)
+library(sf)
 
 data <- read.csv('energy-usage-2010.csv')
+communities <- levels(unique(data$COMMUNITY.AREA.NAME))
+
+chicago_blocks <- blocks(state = "IL", count = "COOK", year = 2010)
+chicago_tracts <- tracts(state = "IL", count = "COOK", year = 2010)
+
+data$GEOID10 <- data$CENSUS.BLOCK
+# 
+# combined_set <- merge(x = data, y = chicago_blocks, by = "GEOID10", all = TRUE)
+# sub_data <- combined_set[combined_set$COMMUNITY.AREA.NAME == 'Rogers Park', ]
+# coordinates(sub_data) <- c("INTPTLAT10","INTPTLON10")
+
 
 
 ui <- dashboardPage(
     
     #create dashboard and elements
-    dashboardHeader(title = "CS 424 Project 2"),
+    dashboardHeader(title = "CS 424 Project 3"),
     
     dashboardSidebar(disable = FALSE, collapsed = FALSE,
                      #menu bar with all 3 panels and about page
@@ -152,10 +165,12 @@ server <- function(input, output) {
     m <- leaflet() %>%
         addTiles() %>%  # Add default OpenStreetMap map tiles
         addMarkers(lng=174.768, lat=-36.852, popup="The birthplace of R")
-    m  # Print the map
+    # m  # Print the map/
+    
+    test <- mapview(chicago_blocks)
     
     output$west_loop_map <- renderLeaflet({
-        m
+        test
     })
     
     output$com1_map <- renderLeaflet({
