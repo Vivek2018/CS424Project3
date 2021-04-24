@@ -7,12 +7,15 @@
 #    http://shiny.rstudio.com/
 #
 
+library(ggplot2)
 library(shiny)
 library(mapview)
 library(shinydashboard)
 library(leaflet)
 library(hash)
 library(tigris)
+library(dplyr)
+
 
 data <- read.csv('energy-usage-2010.csv')
 names(data)[names(data) == "TERM.APRIL.2010"] <- "THERM.APRIL.2010"
@@ -44,7 +47,7 @@ timeframes[["October"]] <- "OCTOBER"
 timeframes[["November"]] <- "NOVEMBER"
 timeframes[["December"]] <- "DECEMBER"
 
-months <- c("JANUARY", "FEBRUARY", "MARCH", "APRIL", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER")
+Months <- c("JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER")
 
 generateChoice <- function(view, timeframe) {
     if (view == 'Gas' || view == "Electricity") {
@@ -83,7 +86,7 @@ getBlock <- function(energy_data, community, building) {
 createCommunityDataset <- function(energy_data, chicago_data, community, view, timeframe, building, choice) {
     
     subset_df <- getBlock(energy_data, community, building)
-        
+    
     sub_chicago <- subset(chicago_data, GEOID10 %in% subset_df$GEOID10)
     
     community_df <- merge(sub_chicago, subset_df[c(choice, "GEOID10")], by = "GEOID10")
@@ -96,7 +99,7 @@ createCommunityDataset <- function(energy_data, chicago_data, community, view, t
 getMonthlyElec <- function(sub_data) {
     elec_monthly = c()
     
-    for (month in months) {
+    for (month in Months) {
         elec_monthly <- c(elec_monthly, sum(sub_data[paste('KWH', month, '2010', sep='.')]))
     }
     
@@ -106,7 +109,7 @@ getMonthlyElec <- function(sub_data) {
 getMonthlyGas <- function(sub_data) {
     gas_monthly = c()
     
-    for (month in months) {
+    for (month in Months) {
         gas_monthly <- c(gas_monthly, sum(sub_data[paste('THERM', month, '2010', sep='.')]))
     }
     
@@ -116,13 +119,24 @@ getMonthlyGas <- function(sub_data) {
 getMonthlyDf <- function(energy_data, community, building) {
     
     sub_data <- getBlock(energy_data, community, building)
-        
+    
     sub_data[is.na(sub_data)] = 0
     
-    elec <- getMonthlyElec(sub_data)
-    gas <- getMonthlyGas(sub_data)
+    Electricity <- as.numeric(getMonthlyElec(sub_data))
+    Gas <- as.numeric(getMonthlyGas(sub_data))
     
-    monthly_df <- data.frame(months, elec, gas)
+    monthly_df <- data.frame(Months, Electricity, Gas)
+    
+    # # monthly_df$elec <- as.numeric(monthly_df$elec)
+    # # monthly_df$gas <- as.numeric(monthly_df$gas)
+    # 
+    # monthly_df <- monthly_df %>% rename(monthly_df,
+    #                                     Month = Months,
+    #                                     Electricity = elec,
+    #                                     Gas = gas
+    # )
+    
+    # print(colnames(monthly_df))
     
     return(monthly_df)
 }
@@ -146,114 +160,125 @@ ui <- dashboardPage(
         tabItems(
             #west side data tab for west side only
             tabItem(tabName="west_side",
-                fluidRow(
-                    column(2, 
-                       selectizeInput(
-                           'west_loop_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE, 
-                       ),
-                       
-                       selectizeInput(
-                           'west_loop_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = FALSE
-                       ),
-                       
-                       selectizeInput(
-                           'west_loop_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
-                       ),
-                       
-                       actionButton("reset_button_first_page", "Reset View")
-                       
-                       
-                           
-                   ),
-                   
-                   column(5, 
-                        leafletOutput("west_loop_map", height = 630)
-                  ),
-                   
-                   column(5,
-                          plotOutput("west_loop_plot", height = 300),
-                          dataTableOutput("west_loop_data")
-                    ),
-                )
+                    fluidRow(
+                        column(2, 
+                               selectizeInput(
+                                   'west_loop_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE, 
+                               ),
+                               
+                               selectizeInput(
+                                   'west_loop_Months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = FALSE
+                               ),
+                               
+                               selectizeInput(
+                                   'west_loop_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
+                               ),
+                               
+                               actionButton("reset_button_first_page", "Reset View"),
+                               
+                               plotOutput("west_loop_plot", height = 350)
+                               
+                               
+                               
+                        ),
+                        
+                        column(5, 
+                               leafletOutput("west_loop_map", height = 630)
+                        ),
+                        
+                        column(5,
+                               
+                               dataTableOutput("west_loop_data")
+                        ),
+                    )
             ),
             
             tabItem(
                 tabName="community_compare",
                 column(6, 
                        fluidRow(
-                            column(4,
-                                    
-                                   selectizeInput(
-                                       'com1', 'Select a Community: ', choices = communities, multiple = FALSE, selected = "Near West Side"
-                                   ),
-
-                                   selectizeInput(
-                                       'com1_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
-                                   ),
-
-                                   selectizeInput(
-                                       'com1_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = FALSE
-                                   ),
-
-                                   selectizeInput(
-                                       'com1_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
-                                   ),
-
-                                   actionButton("reset_com1", "Reset View")
-                                   
+                           column(4,
+                                  
+                                  selectizeInput(
+                                      'com1', 'Select a Community: ', choices = communities, multiple = FALSE, selected = "Near West Side"
+                                  ),
+                                  
+                                  selectizeInput(
+                                      'com1_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
+                                  ),
+                                  
+                                  selectizeInput(
+                                      'com1_Months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = FALSE
+                                  ),
+                                  
+                                  selectizeInput(
+                                      'com1_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
+                                  ),
+                                  
+                                  actionButton("reset_com1", "Reset View"),
+                                  
+                                  plotOutput("com1_plot", height = 350)
+                                  
+                                  
                            ), 
                            
                            column(8, 
                                   
-                                  leafletOutput("com1_map", height = 630)
+                                  leafletOutput("com1_map", height = 630),
                                   
-                                  )
+                                  dataTableOutput("com1_data")
+                                  
+                           )
                        )
-               ),
-            
-            
-            column(6, 
-                   fluidRow(
-                       column(4,
-                              
-                              selectizeInput(
-                                  'com2', 'Select a Community: ', choices = communities, multiple = FALSE, selected = "Loop"
-                              ),
-
-                              selectizeInput(
-                                  'com2_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
-                              ),
-
-                              selectizeInput(
-                                  'com2_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = FALSE
-                              ),
-
-                              selectizeInput(
-                                  'com2_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
-                              ),
-
-                              actionButton("reset_com2", "Reset View")
-                              
-                       ), 
-                       
-                       column(8, 
-                              
-                              leafletOutput("com2_map", height = 630)
-                              
+                ),
+                
+                
+                column(6, 
+                       fluidRow(
+                           column(4,
+                                  
+                                  selectizeInput(
+                                      'com2', 'Select a Community: ', choices = communities, multiple = FALSE, selected = "Loop"
+                                  ),
+                                  
+                                  selectizeInput(
+                                      'com2_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
+                                  ),
+                                  
+                                  selectizeInput(
+                                      'com2_Months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = FALSE
+                                  ),
+                                  
+                                  selectizeInput(
+                                      'com2_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
+                                  ),
+                                  
+                                  actionButton("reset_com2", "Reset View"),
+                                  
+                                  plotOutput("com2_plot", height = 300)
+                                  
+                           ), 
+                           
+                           column(8, 
+                                  
+                                  leafletOutput("com2_map", height = 630),
+                                  
+                                  dataTableOutput("com2_data")
+                                  
+                           )
                        )
-                   )
                 )
-            
+                
             ),
             
             tabItem(
                 tabName = "chicago",
                 column(2, 
-
+                       
                        selectizeInput(
                            'chicago_view', 'Select a View: ', choices = c("Electricity", "10% Most Electricity", "Gas", "10% Most Gas", "Building Type", "Building Age", "10% Most Oldest Buildings", "10% Most Oldest Buildings", "Building Height", "10% Most Building Height", "10% Most Gas", "Total Population", "10% Most Populated", "10% Most Occupied", "10% Most Renters"), selected = "Electricity", multiple = FALSE
                        ),
-
+                       
                        leafletOutput("chicago_map", height = 630)
                 )
             ),
@@ -264,29 +289,40 @@ ui <- dashboardPage(
         )
     )
 )
-    
-    
-    
+
+
+
 # Define server logic required to draw a histogram
 server <- function(input, output) {
     
     #First Map - West Side Loop
     
-    actionsPage1 <- reactive({list(input$reset_button_first_page, input$west_loop_view, input$west_loop_months, input$west_loop_building)})
+    actionsPage1 <- reactive({list(input$reset_button_first_page, input$west_loop_view, input$west_loop_Months, input$west_loop_building)})
     observeEvent(actionsPage1(), {
         
-        choice <- generateChoice(input$west_loop_view, input$west_loop_months)
-        dataset <- createCommunityDataset(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_months, input$west_loop_building, choice)
+        choice <- generateChoice(input$west_loop_view, input$west_loop_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_Months, input$west_loop_building, choice)
         
         output$west_loop_map <- renderLeaflet({
             mapview(dataset, zcol = choice)@map
         })
         
         monthly_totals <- getMonthlyDf(data, "Near West Side", input$west_loop_building)
-            
+        
         
         output$west_loop_plot <- renderPlot({
             
+            monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+            
+            ggplot(monthly_totals, aes(x=Month)) +
+                geom_line(aes(y = Electricity, color = "darkred")) +
+                geom_line(aes(y = Gas, color = "steelblue")) +
+                ylab("Usage") + 
+                xlab("Month") + 
+                scale_color_identity(name = "Energy Sources",
+                                     breaks = c("darkred", "steelblue"),
+                                     labels = c("Electricity", "Gas"),
+                                     guide = "legend")
         }) 
         
         output$west_loop_data <- renderDataTable(
@@ -298,35 +334,81 @@ server <- function(input, output) {
     
     
     
-   
+    
     
     
     #Community 1 - Page 2 
     
-    actionsCom1 <- reactive({list(input$reset_com1, input$com1, input$com1_view, input$com1_months, input$com1_building)})
+    actionsCom1 <- reactive({list(input$reset_com1, input$com1, input$com1_view, input$com1_Months, input$com1_building)})
     observeEvent(actionsCom1(), {
         
-        choice <- generateChoice(input$com1_view, input$com1_months)
-        dataset <- createCommunityDataset(data, chicago_blocks, input$com1, input$com1_view, input$com1_months, input$com1_building, choice)
+        choice <- generateChoice(input$com1_view, input$com1_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com1, input$com1_view, input$com1_Months, input$com1_building, choice)
         
         output$com1_map <- renderLeaflet({
             mapview(dataset, zcol = choice)@map
         })
-    
+        
+        
+        monthly_totals <- getMonthlyDf(data, input$com1, input$com1_building)
+        
+        
+        output$com1_plot <- renderPlot({
+            
+            monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+            
+            ggplot(monthly_totals, aes(x=Month)) +
+                geom_line(aes(y = Electricity, color = "darkred")) +
+                geom_line(aes(y = Gas, color = "steelblue")) +
+                ylab("Usage") + 
+                xlab("Month") + 
+                scale_color_identity(name = "Energy Sources",
+                                     breaks = c("darkred", "steelblue"),
+                                     labels = c("Electricity", "Gas"),
+                                     guide = "legend")
+        }) 
+        
+        output$com1_data <- renderDataTable(
+            monthly_totals
+        )
+        
     })
-
-    actionsCom2 <- reactive({list(input$reset_com2, input$com2, input$com2_view, input$com2_months, input$com2_building)})
+    
+    actionsCom2 <- reactive({list(input$reset_com2, input$com2, input$com2_view, input$com2_Months, input$com2_building)})
     observeEvent(actionsCom2(), {
         
-        choice <- generateChoice(input$com2_view, input$com2_months)
-        dataset <- createCommunityDataset(data, chicago_blocks, input$com2, input$com2_view, input$com2_months, input$com2_building, choice)
+        choice <- generateChoice(input$com2_view, input$com2_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com2, input$com2_view, input$com2_Months, input$com2_building, choice)
         
         output$com2_map <- renderLeaflet({
             mapview(dataset, zcol = choice)@map
         })
         
+        
+        monthly_totals <- getMonthlyDf(data, input$com2, input$com2_building)
+        
+        
+        output$com2_plot <- renderPlot({
+            
+            monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+            
+            ggplot(monthly_totals, aes(x=Month)) +
+                geom_line(aes(y = Electricity, color = "darkred")) +
+                geom_line(aes(y = Gas, color = "steelblue")) +
+                ylab("Usage") + 
+                xlab("Month") + 
+                scale_color_identity(name = "Energy Sources",
+                                     breaks = c("darkred", "steelblue"),
+                                     labels = c("Electricity", "Gas"),
+                                     guide = "legend")
+        }) 
+        
+        output$com2_data <- renderDataTable(
+            monthly_totals
+        )
+        
     })
-
+    
     output$chicago_map <- renderLeaflet({
         # m
     })
