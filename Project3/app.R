@@ -11,14 +11,79 @@ library(shiny)
 library(mapview)
 library(shinydashboard)
 library(leaflet)
+library(hash)
 
 data <- read.csv('energy-usage-2010.csv')
+chicago_blocks <- blocks(state = "IL", count = "COOK", year = 2010)
+data$GEOID10 <- data$CENSUS.BLOCK
+communities <- unique(data$COMMUNITY.AREA.NAME)
+
+views <- hash() 
+views[["Electricity"]] <- "KWH"
+views[["Gas"]] <- "THERM"
+views[["Building Type"]] <- "BUILDING.TYPE"
+views[["Building Age"]] <- "AVERAGE.BUILDING.AGE"
+views[["Building Height"]] <- "AVERAGE.STORIES"
+views[["Total Population"]] <- "TOTAL.POPULATION"
+
+
+timeframes <- hash()
+timeframes[["Year"]] <- "TOTAL"
+timeframes[["January"]] <- "JANUARY"
+timeframes[["February"]] <- "FEBRUARY"
+timeframes[["March"]] <- "MARCH"
+timeframes[["April"]] <- "APRIL"
+timeframes[["June"]] <- "JUNE"
+timeframes[["July"]] <- "JULY"
+timeframes[["August"]] <- "AUGUST"
+timeframes[["September"]] <- "SEPTEMBER"
+timeframes[["October"]] <- "OCTOBER"
+timeframes[["November"]] <- "NOVEMBER"
+timeframes[["December"]] <- "DECEMBER"
+
+
+
+createCommunityMap <- function(energy_data, chicago_data, community, view, timeframe) {
+    subset_df <- energy_data[energy_data$COMMUNITY.AREA.NAME == community, ]
+    sub_chicago <- subset(chicago_data, GEOID10 %in% subset_df$GEOID10)
+    
+    choice <- ""
+    
+    if (view == 'Gas' || view == "Electricity") {
+        if (timeframe != 'Year') {
+            choice <- paste(views[[view]], timeframes[[timeframe]], '2010', sep=".")
+        } else {
+            if (view == 'Gas') {
+                choice <- paste(timeframes[[timeframe]], "THERMS", sep=".")
+            } else {
+                choice <- paste(timeframes[[timeframe]], views[[view]], sep=".")  
+            }
+            
+        }
+    } else {
+        choice <- views[[view]]
+    }
+    
+    print(choice)
+    
+    community_df <- merge(sub_chicago, subset_df[c(choice, "GEOID10")], by = "GEOID10")
+    
+    print(community_df)
+    
+    map <- mapview(community_df, zcol = choice)
+    
+    print(map)
+    
+    print("attempting return")
+    return (map)
+    
+}
 
 
 ui <- dashboardPage(
     
     #create dashboard and elements
-    dashboardHeader(title = "CS 424 Project 2"),
+    dashboardHeader(title = "CS 424 Project 3"),
     
     dashboardSidebar(disable = FALSE, collapsed = FALSE,
                      #menu bar with all 3 panels and about page
@@ -37,7 +102,7 @@ ui <- dashboardPage(
                 fluidRow(
                     column(2, 
                        selectizeInput(
-                           'west_loop_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
+                           'west_loop_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE, 
                        ),
                        
                        selectizeInput(
@@ -64,25 +129,29 @@ ui <- dashboardPage(
                        fluidRow(
                             column(4,
                                     
-                                   selectizeInput(
-                                       'com1_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
-                                   ),
-                                   
-                                   selectizeInput(
-                                       'com1_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = TRUE
-                                   ),
-                                   
-                                   selectizeInput(
-                                       'com1_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
-                                   ),
-                                   
-                                   actionButton("reset_com1", "Reset View")       
+                                   # selectizeInput(
+                                   #     'com1', 'Select a Community: ', choices = communities, multiple = FALSE, selected = "Near West Side"
+                                   # ),
+                                   # 
+                                   # selectizeInput(
+                                   #     'com1_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
+                                   # ),
+                                   # 
+                                   # selectizeInput(
+                                   #     'com1_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = TRUE
+                                   # ),
+                                   # 
+                                   # selectizeInput(
+                                   #     'com1_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
+                                   # ),
+                                   # 
+                                   # actionButton("reset_com1", "Reset View")       
                                    
                            ), 
                            
                            column(8, 
                                   
-                                  leafletOutput("com1_map", height = 630)
+                                  # leafletOutput("com1_map", height = 630)
                                   
                                   )
                        )
@@ -93,25 +162,29 @@ ui <- dashboardPage(
                    fluidRow(
                        column(4,
                               
-                              selectizeInput(
-                                  'com2_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
-                              ),
-                              
-                              selectizeInput(
-                                  'com2_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = TRUE
-                              ),
-                              
-                              selectizeInput(
-                                  'com2_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
-                              ),
-                              
-                              actionButton("reset_com2", "Reset View")       
+                              # selectizeInput(
+                              #     'com2', 'Select a Community: ', choices = communities, multiple = FALSE, selected = "Loop"
+                              # ),
+                              # 
+                              # selectizeInput(
+                              #     'com2_view', 'Select a View: ', choices = c("Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity", multiple = FALSE
+                              # ),
+                              # 
+                              # selectizeInput(
+                              #     'com2_months', 'Select a Time Frame: ', choices = c("Year", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), selected = "Year", multiple = TRUE
+                              # ),
+                              # 
+                              # selectizeInput(
+                              #     'com2_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
+                              # ),
+                              # 
+                              # actionButton("reset_com2", "Reset View")       
                               
                        ), 
                        
                        column(8, 
                               
-                              leafletOutput("com2_map", height = 630)
+                              # leafletOutput("com2_map", height = 630)
                               
                        )
                    )
@@ -122,12 +195,12 @@ ui <- dashboardPage(
             tabItem(
                 tabName = "chicago",
                 column(2, 
-                       
-                       selectizeInput(
-                           'chicago_view', 'Select a View: ', choices = c("Electricity", "10% Most Electricity", "Gas", "10% Most Gas", "Building Type", "Building Age", "10% Most Oldest Buildings", "10% Most Oldest Buildings", "Building Height", "10% Most Building Height", "10% Most Gas", "Total Population", "10% Most Populated", "10% Most Occupied", "10% Most Renters"), selected = "Electricity", multiple = FALSE
-                       ),
-                       
-                       leafletOutput("chicago_map", height = 630)
+                       # 
+                       # selectizeInput(
+                       #     'chicago_view', 'Select a View: ', choices = c("Electricity", "10% Most Electricity", "Gas", "10% Most Gas", "Building Type", "Building Age", "10% Most Oldest Buildings", "10% Most Oldest Buildings", "Building Height", "10% Most Building Height", "10% Most Gas", "Total Population", "10% Most Populated", "10% Most Occupied", "10% Most Renters"), selected = "Electricity", multiple = FALSE
+                       # ),
+                       # 
+                       # leafletOutput("chicago_map", height = 630)
                 )
             ),
             
@@ -142,33 +215,24 @@ ui <- dashboardPage(
     
 # Define server logic required to draw a histogram
 server <- function(input, output) {
+    
     #First Map - West Side Loop
-    
-    # observe({
-    #     view <- input$west_loop_view
-    #     west_side_data <- 
-    # })
-    
-    m <- leaflet() %>%
-        addTiles() %>%  # Add default OpenStreetMap map tiles
-        addMarkers(lng=174.768, lat=-36.852, popup="The birthplace of R")
-    m  # Print the map
-    
+   
     output$west_loop_map <- renderLeaflet({
-        m
+        createCommunityMap(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_months)@map
     })
     
-    output$com1_map <- renderLeaflet({
-        m
-    })
-    
-    output$com2_map <- renderLeaflet({
-        m
-    })
-    
-    output$chicago_map <- renderLeaflet({
-        m
-    })
+    # output$com1_map <- renderLeaflet({
+    #     # createCommunityMap(data, chicago_blocks, input$com1, input$com1_view, input$com1_months)
+    # })
+    # 
+    # output$com2_map <- renderLeaflet({
+    #     # createCommunityMap(data, chicago_blocks, input$com2, input$com2_view, input$com2_months)
+    # })
+    # 
+    # output$chicago_map <- renderLeaflet({
+    #     # m
+    # })
     
 }
 
