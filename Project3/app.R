@@ -22,6 +22,13 @@ names(data)[names(data) == "TERM.APRIL.2010"] <- "THERM.APRIL.2010"
 
 chicago_blocks <- blocks(state = "IL", count = "COOK", year = 2010)
 data$GEOID10 <- data$CENSUS.BLOCK
+
+data$tract <- data$CENSUS.BLOCK
+chicago_blocks$tract <- chicago_blocks$GEOID10
+
+data$tract <- gsub('.{4}$', '', data$tract)
+chicago_blocks$tract <- gsub('.{4}$', '', chicago_blocks$tract)
+
 communities <- unique(data$COMMUNITY.AREA.NAME)
 
 views <- hash() 
@@ -31,6 +38,7 @@ views[["Building Type"]] <- "BUILDING.TYPE"
 views[["Building Age"]] <- "AVERAGE.BUILDING.AGE"
 views[["Building Height"]] <- "AVERAGE.STORIES"
 views[["Total Population"]] <- "TOTAL.POPULATION"
+
 
 
 timeframes <- hash()
@@ -127,19 +135,63 @@ getMonthlyDf <- function(energy_data, community, building) {
     
     monthly_df <- data.frame(Months, Electricity, Gas)
     
-    # # monthly_df$elec <- as.numeric(monthly_df$elec)
-    # # monthly_df$gas <- as.numeric(monthly_df$gas)
-    # 
-    # monthly_df <- monthly_df %>% rename(monthly_df,
-    #                                     Month = Months,
-    #                                     Electricity = elec,
-    #                                     Gas = gas
-    # )
-    
-    # print(colnames(monthly_df))
-    
     return(monthly_df)
 }
+
+
+
+#Electricity", "Gas", "Oldest Buildings", "Newest Buildings", "Tallest Buildings", "Most Populated", "Most Occupied", "Most Rented
+
+chicago_Views = hash()
+
+chicago_Views[['Electricity']] = 'TOTAL.KWH'
+chicago_Views[['Gas']] = 'TOTAL.THERMS'
+chicago_Views[["Building Type"]] <- "BUILDING.TYPE"
+chicago_Views[["Building Age"]] <- "AVERAGE.BUILDING.AGE"
+chicago_Views[["Building Height"]] <- "AVERAGE.STORIES"
+chicago_Views[["Total Population"]] <- "TOTAL.POPULATION"
+
+chicago_Views[['Oldest Buildings']] = 'AVERAGE.BUILDING.AGE'
+chicago_Views[['Newest Buildings']] = 'AVERAGE.BUILDING.AGE'
+chicago_Views[['Tallest Buildings']] = 'AVERAGE.STORIES'
+chicago_Views[['Electricity Most Used']] = 'TOTAL.KWH'
+chicago_Views[['Gas Most Used']] = 'TOTAL.THERMS'
+chicago_Views[['Most Populated']] = 'TOTAL.POPULATION'
+chicago_Views[['Most Occupied']] = 'OCCUPIED.UNITS'
+chicago_Views[['Most Rented']] = 'RENTER.OCCUPIED.HOUSING.UNITS'
+
+
+getTract <- function(energy_data, view, building) {
+    building_choice <- c()
+    
+    if (building == "All") {
+        building_choice <- c("Commercial", "Residential", "Industrial")
+    } else {
+        building_choice <- c(building)
+    }
+    
+    subset_df <- energy_data[energy_data$BUILDING.TYPE %in% building_choice, ]
+    
+    if (view %in% c("Electricity Most Used", "Gas Most Used", "Oldest Buildings", "Tallest Buildings", "Most Population", "Most Occupied", "Most Rented")) {
+        subset_df <- subset_df %>% top_frac(0.1, chicago_Views[[view]])
+    } else if (view == "Newest Buildings") {
+        subset_df <- subset_df %>% top_frac(-0.1, chicago_Views[[view]])
+    }
+    
+    return (subset_df)
+}
+
+getTractData <- function(energydata, chicago_data, view, building) {
+    subset_df <- getTract(energydata, view, building)
+    sub_chicago <- subset(chicago_data, tract %in% subset_df$tract)
+    tract_df <- merge(sub_chicago, subset_df[c(chicago_Views[[view]], "GEOID10")], by = "GEOID10")
+    
+    tract_df$GEOID10 <- tract_df$tract
+    
+    return(tract_df)
+}
+
+
 
 ui <- dashboardPage(
     
@@ -224,11 +276,12 @@ ui <- dashboardPage(
                            
                            column(8, 
                                   
-                                  leafletOutput("com1_map", height = 630),
-                                  
-                                  dataTableOutput("com1_data")
+                                  leafletOutput("com1_map", height = 630)
                                   
                            )
+                       ),
+                       fluidRow(
+                           dataTableOutput("com1_data")
                        )
                 ),
                 
@@ -261,11 +314,13 @@ ui <- dashboardPage(
                            
                            column(8, 
                                   
-                                  leafletOutput("com2_map", height = 630),
-                                  
-                                  dataTableOutput("com2_data")
-                                  
+                                  leafletOutput("com2_map", height = 630)
                            )
+                       ),
+                                 
+                    fluidRow(
+                        dataTableOutput("com2_data")
+                   
                        )
                 )
                 
@@ -276,11 +331,20 @@ ui <- dashboardPage(
                 column(2, 
                        
                        selectizeInput(
-                           'chicago_view', 'Select a View: ', choices = c("Electricity", "10% Most Electricity", "Gas", "10% Most Gas", "Building Type", "Building Age", "10% Most Oldest Buildings", "10% Most Oldest Buildings", "Building Height", "10% Most Building Height", "10% Most Gas", "Total Population", "10% Most Populated", "10% Most Occupied", "10% Most Renters"), selected = "Electricity", multiple = FALSE
+                           'chicago_view', 'Select a View: ', choices = c("Electricity Most Used", "Gas Most Used", "Oldest Buildings", "Newest Buildings", "Tallest Buildings", "Most Population", "Most Occupied", "Most Rented", "Electricity", "Gas", "Building Type", "Building Age", "Building Height", "Total Population"), selected = "Electricity Most Used", multiple = FALSE
                        ),
                        
-                       leafletOutput("chicago_map", height = 630)
-                )
+                       selectizeInput(
+                           'chicago_building', 'Select a Building Type: ', choices = c("All", "Commercial", "Residential", "Industrial"), selected = "All", multiple = FALSE
+                       ),
+                       
+                       actionButton("reset_chicago", "Reset View")),
+                
+                       
+                      column(8, 
+                        leafletOutput("chicago_map", height = 630)
+                      
+                    )
             ),
             
             tabItem(
@@ -296,6 +360,38 @@ ui <- dashboardPage(
 server <- function(input, output) {
     
     #First Map - West Side Loop
+
+    observe({
+        choice <- generateChoice(input$west_loop_view, input$west_loop_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, "Near West Side", input$west_loop_view, input$west_loop_Months, input$west_loop_building, choice)
+        
+        output$west_loop_map <- renderLeaflet({
+            mapview(dataset, zcol = choice)@map
+        })
+        
+        monthly_totals <- getMonthlyDf(data, "Near West Side", input$west_loop_building)
+        
+        
+        output$west_loop_plot <- renderPlot({
+            
+            monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+            
+            ggplot(monthly_totals, aes(x=Month)) +
+                geom_line(aes(y = Electricity, color = "darkred")) +
+                geom_line(aes(y = Gas, color = "steelblue")) +
+                ylab("Usage") + 
+                xlab("Month") + 
+                scale_color_identity(name = "Energy Sources",
+                                     breaks = c("darkred", "steelblue"),
+                                     labels = c("Electricity", "Gas"),
+                                     guide = "legend")
+        }) 
+        
+        output$west_loop_data <- renderDataTable(
+            monthly_totals
+        )
+    })
+    
     
     actionsPage1 <- reactive({list(input$reset_button_first_page, input$west_loop_view, input$west_loop_Months, input$west_loop_building)})
     observeEvent(actionsPage1(), {
@@ -330,30 +426,25 @@ server <- function(input, output) {
         )
     })
     
-    
-    
-    
-    
-    
+
     
     
     #Community 1 - Page 2 
     
-    actionsCom1 <- reactive({list(input$reset_com1, input$com1, input$com1_view, input$com1_Months, input$com1_building)})
-    observeEvent(actionsCom1(), {
+    
+    observe({
+        choice <- generateChoice(input$com2_view, input$com2_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com2, input$com2_view, input$com2_Months, input$com2_building, choice)
         
-        choice <- generateChoice(input$com1_view, input$com1_Months)
-        dataset <- createCommunityDataset(data, chicago_blocks, input$com1, input$com1_view, input$com1_Months, input$com1_building, choice)
-        
-        output$com1_map <- renderLeaflet({
+        output$com2_map <- renderLeaflet({
             mapview(dataset, zcol = choice)@map
         })
         
         
-        monthly_totals <- getMonthlyDf(data, input$com1, input$com1_building)
+        monthly_totals <- getMonthlyDf(data, input$com2, input$com2_building)
         
         
-        output$com1_plot <- renderPlot({
+        output$com2_plot <- renderPlot({
             
             monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
             
@@ -368,10 +459,9 @@ server <- function(input, output) {
                                      guide = "legend")
         }) 
         
-        output$com1_data <- renderDataTable(
+        output$com2_data <- renderDataTable(
             monthly_totals
         )
-        
     })
     
     actionsCom2 <- reactive({list(input$reset_com2, input$com2, input$com2_view, input$com2_Months, input$com2_building)})
@@ -409,9 +499,95 @@ server <- function(input, output) {
         
     })
     
-    output$chicago_map <- renderLeaflet({
-        # m
+    observe({
+        choice <- generateChoice(input$com1_view, input$com1_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com1, input$com1_view, input$com1_Months, input$com1_building, choice)
+        
+        output$com1_map <- renderLeaflet({
+            mapview(dataset, zcol = choice)@map
+        })
+        
+        
+        monthly_totals <- getMonthlyDf(data, input$com1, input$com1_building)
+        
+        
+        output$com1_plot <- renderPlot({
+            
+            monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+            
+            ggplot(monthly_totals, aes(x=Month)) +
+                geom_line(aes(y = Electricity, color = "darkred")) +
+                geom_line(aes(y = Gas, color = "steelblue")) +
+                ylab("Usage") + 
+                xlab("Month") + 
+                scale_color_identity(name = "Energy Sources",
+                                     breaks = c("darkred", "steelblue"),
+                                     labels = c("Electricity", "Gas"),
+                                     guide = "legend")
+        }) 
+        
+        output$com1_data <- renderDataTable(
+            monthly_totals
+        )
     })
+    
+    actionsCom1 <- reactive({list(input$reset_com1, input$com1, input$com1_view, input$com1_Months, input$com1_building)})
+    observeEvent(actionsCom1(), {
+        
+        choice <- generateChoice(input$com1_view, input$com1_Months)
+        dataset <- createCommunityDataset(data, chicago_blocks, input$com1, input$com1_view, input$com1_Months, input$com1_building, choice)
+        
+        output$com1_map <- renderLeaflet({
+            mapview(dataset, zcol = choice)@map
+        })
+        
+        
+        monthly_totals <- getMonthlyDf(data, input$com1, input$com1_building)
+        
+        
+        output$com1_plot <- renderPlot({
+            
+            monthly_totals$Month <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+            
+            ggplot(monthly_totals, aes(x=Month)) +
+                geom_line(aes(y = Electricity, color = "darkred")) +
+                geom_line(aes(y = Gas, color = "steelblue")) +
+                ylab("Usage") + 
+                xlab("Month") + 
+                scale_color_identity(name = "Energy Sources",
+                                     breaks = c("darkred", "steelblue"),
+                                     labels = c("Electricity", "Gas"),
+                                     guide = "legend")
+        }) 
+        
+        output$com1_data <- renderDataTable(
+            monthly_totals
+        )
+        
+    })
+    
+    
+    
+    actionsChicago <- reactive({list(input$reset_chicago, input$chicago_view, input$chicago_building)})
+    observeEvent(actionsChicago(), {
+        
+        dataset <- getTractData(data, chicago_blocks, input$chicago_view, input$chicago_building)
+        # print(dataset)
+        output$chicago_map <- renderLeaflet({
+            mapview(dataset, zcol = chicago_Views[[input$chicago_view]])@map
+        })
+
+    })
+
+    # observe({
+    #     dataset <- getTractData(data, chicago_blocks, input$chicago_view, input$chicago_building)
+    # #
+    #     output$chicago_map <- renderLeaflet({
+    #         mapview(dataset, zcol = chicago_views[[input$chicago_view]])@map
+    #     })
+    # })
+    # 
+
     
 }
 
