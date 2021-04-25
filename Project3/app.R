@@ -181,10 +181,15 @@ getTract <- function(energy_data, view, building) {
         subset_df <- subset_df %>% top_frac(-0.1, chicago_Views[[view]])
     }
     
-    return (subset_df)
+    newset <- data.frame(subset_df['GEOID10'], subset_df[chicago_Views[[view]]])
+    return_set <- aggregate(newset[chicago_Views[[view]]], by=list(newset$GEOID10), FUN=sum, keep.names = TRUE, na.rm=TRUE, na.action=NULL)
+    return_set$GEOID10 <- result$Group.1
+    return(return_set)
 }
 
 getTractData <- function(energydata, chicago_data, view, building) {
+    
+    
     subset_df <- getTract(energydata, view, building)
     sub_chicago <- subset(chicago_data, GEOID10 %in% subset_df$GEOID10)
     tract_df <- merge(sub_chicago, subset_df[c(chicago_Views[[view]], "GEOID10")], by = "GEOID10")
