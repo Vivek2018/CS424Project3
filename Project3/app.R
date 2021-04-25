@@ -348,7 +348,10 @@ ui <- dashboardPage(
             ),
             
             tabItem(
-                tabName = "about"
+                tabName = "about",
+                h2("About Page"),
+                verbatimTextOutput("AboutOut")
+                
             )
         )
     )
@@ -579,14 +582,13 @@ server <- function(input, output) {
 
     })
 
-    # observe({
-    #     dataset <- getTractData(data, chicago_blocks, input$chicago_view, input$chicago_building)
-    # #
-    #     output$chicago_map <- renderLeaflet({
-    #         mapview(dataset, zcol = chicago_views[[input$chicago_view]])@map
-    #     })
-    # })
-    # 
+    #output for about page
+    output$AboutOut <- renderText({
+        "Created by: Vivek Bhatt\n
+         Created: 4/24/2021\n
+         Data Source: https://data.cityofchicago.org/Environment-Sustainable-Development/Energy-Usage-2010/8yq3-m6wp\n
+         Intended for visualizing the contribution of energy sources in Chicago and other demographics."   
+    })
 
     
 }
