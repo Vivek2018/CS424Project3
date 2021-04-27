@@ -183,7 +183,7 @@ getTract <- function(energy_data, view, building) {
     
     newset <- data.frame(subset_df['GEOID10'], subset_df[chicago_Views[[view]]])
     return_set <- aggregate(newset[chicago_Views[[view]]], by=list(newset$GEOID10), FUN=sum, keep.names = TRUE, na.rm=TRUE, na.action=NULL)
-    return_set$GEOID10 <- result$Group.1
+    return_set$GEOID10 <- return_set$Group.1
     return(return_set)
 }
 
